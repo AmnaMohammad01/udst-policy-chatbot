@@ -31,11 +31,12 @@ policies = {
 st.set_page_config(page_title="UDST Policy RAG Chatbot", layout="wide")
 st.markdown("""
     <style>
-        .main { background-color: #ffffff; padding: 15px; border-radius: 10px; }
+        body { background-color: #1e1e1e; color: white; }
+        .main { background-color: #262626; padding: 20px; border-radius: 10px; }
         .stTextInput, .stTextArea, .stButton { border-radius: 10px; }
         .stButton button { background-color: #ff4b4b; color: white; border-radius: 10px; font-size: 14px; }
-        .policy-container { display: flex; flex-wrap: wrap; gap: 5px; }
-        .policy-container a { background-color: #f0f0f0; padding: 3px 8px; border-radius: 5px; text-decoration: none; color: #333; font-size: 12px; }
+        .policy-container { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+        .policy-container a { background-color: #f0f0f0; padding: 6px 10px; border-radius: 5px; text-decoration: none; color: #333; font-size: 14px; text-align: center; display: block; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -43,7 +44,7 @@ st.markdown("""
 st.title("UDST Policy RAG Chatbot")
 st.write("Ask questions about UDST policies and get relevant answers.")
 
-# **Policy List as Compact Hyperlinks**
+# **Policy List as Compact Hyperlinks in Two Rows**
 st.subheader("Available Policies")
 st.markdown('<div class="policy-container">' + ''.join([f'<a href="{url}" target="_blank">{policy}</a>' for policy, url in policies.items()]) + '</div>', unsafe_allow_html=True)
 
