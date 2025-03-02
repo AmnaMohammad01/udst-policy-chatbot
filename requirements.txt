@@ -1,0 +1,7 @@
+streamlit
+mistralai
+faiss-cpu
+numpy
+requests
+beautifulsoup4
+python-dotenv
