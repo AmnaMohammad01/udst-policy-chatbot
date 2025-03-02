@@ -40,7 +40,7 @@ def fetch_policies():
         "International Student Policy": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/udst-policies-and-procedures/international-student-policy",
         "International Student Procedure": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/udst-policies-and-procedures/international-student-procedure",
         "Registration Policy": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/policies-and-procedures/registration-policy",
-        "Registration Procedure": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/udst-policies-and-procedures/registration-procedure"
+        "Registration Procedure": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/policies-and-procedures/registration-procedure"
     }
 
 # Function to regenerate FAISS index
@@ -56,14 +56,22 @@ def regenerate_embeddings():
                 continue
             response.raise_for_status()
             soup = BeautifulSoup(response.text, "html.parser")
-            content = soup.get_text(strip=True)
+            content = soup.get_text(strip=True)[:2048]  # Limit content size
             all_chunks.append(content)
             valid_policies[title] = url
         except Exception as e:
             st.error(f"Error fetching {url}: {e}")
 
     if all_chunks:
-        embeddings = [client.embeddings.create(model="mistral-embed", inputs=[chunk]).data[0].embedding for chunk in all_chunks]
+        embeddings = []
+        for chunk in all_chunks:
+            try:
+                response = client.embeddings.create(model="mistral-embed", inputs=[chunk])
+                embeddings.append(response.data[0].embedding)
+            except Exception as e:
+                st.error(f"Error generating embeddings: {e}")
+                return None, None, None
+
         embeddings = np.array(embeddings)
         index = faiss.IndexFlatL2(embeddings.shape[1])
         index.add(embeddings)
@@ -93,7 +101,7 @@ def get_text_embedding(text_chunks):
     embeddings_list = []
     for text in text_chunks:
         try:
-            response = client.embeddings.create(model="mistral-embed", inputs=[text])
+            response = client.embeddings.create(model="mistral-embed", inputs=[text[:512]])  # Limit chunk size
             embeddings_list.append(response.data[0].embedding)
         except Exception as e:
             st.error(f"Error fetching embeddings: {e}")
