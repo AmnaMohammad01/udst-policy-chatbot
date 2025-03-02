@@ -20,19 +20,23 @@ except Exception as e:
 
 client = Mistral(api_key=API_KEY)
 
-# Define policy URLs and names
-policies = {
-    "Graduation Policy": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/udst-policies-and-procedures/graduation-policy",
-    "Graduate Admissions Policy": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/policies-and-procedures/graduate-admissions-policy",
-    "Graduate Academic Standing Policy": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/udst-policies-and-procedures/graduate-academic-standing-policy",
-    "Graduate Academic Standing Procedure": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/udst-policies-and-procedures/graduate-academic-standing-procedure",
-    "Graduate Final Grade Policy": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/policies-and-procedures/graduate-final-grade-policy",
-    "Graduate Final Grade Procedure": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/policies-and-procedures/graduate-final-grade-procedure",
-    "International Student Policy": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/udst-policies-and-procedures/international-student-policy",
-    "International Student Procedure": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/udst-policies-and-procedures/international-student-procedure",
-    "Registration Policy": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/policies-and-procedures/registration-policy",
-    "Registration Procedure": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/udst-policies-and-procedures/registration-procedure"
-}
+# Define paths for FAISS index and chunks
+FAISS_INDEX_PATH = "policy_embeddings.index"
+ALL_CHUNKS_PATH = "all_chunks.pkl"
+
+# Load FAISS index and all_chunks if available
+if os.path.exists(FAISS_INDEX_PATH) and os.path.exists(ALL_CHUNKS_PATH):
+    try:
+        index = faiss.read_index(FAISS_INDEX_PATH)
+        with open(ALL_CHUNKS_PATH, "rb") as f:
+            all_chunks = pickle.load(f)
+        st.success("Policy data loaded successfully.")
+    except Exception as e:
+        st.error(f"Error loading FAISS index: {e}")
+        index, all_chunks = None, None
+else:
+    st.warning("FAISS index and policy data not found. Please regenerate embeddings.")
+    index, all_chunks = None, None
 
 # **Function to get text embeddings**
 def get_text_embedding(text_chunks):
@@ -65,43 +69,39 @@ st.markdown("""
 st.title("UDST Policy Chatbot")
 st.write("Ask questions about UDST policies and get relevant answers.")
 
-# **Policy List as Compact Hyperlinks in Two Rows**
-st.subheader("Available Policies")
-st.markdown('<div class="policy-container">' + ''.join([f'<a href="{url}" target="_blank">{policy}</a>' for policy, url in policies.items()]) + '</div>', unsafe_allow_html=True)
-
 # **User Query Section**
 st.subheader("Ask a Question")
 question = st.text_input("Enter your question:", "", key="question_input")
 
 if st.button("Get Answer", key="get_answer_button"):
     if question:
-        question_embedding = get_text_embedding([question])
-        if question_embedding is None:
-            st.error("Failed to generate embeddings. Please try again later.")
+        if index is None or all_chunks is None:
+            st.error("FAISS index is not available. Please check your data.")
         else:
-            question_embedding = np.array(question_embedding)
-            if 'index' in globals() and 'all_chunks' in globals():
+            question_embedding = get_text_embedding([question])
+            if question_embedding is None:
+                st.error("Failed to generate embeddings. Please try again later.")
+            else:
+                question_embedding = np.array(question_embedding)
                 D, I = index.search(question_embedding, k=2)
                 retrieved_chunks = [all_chunks[i] for i in I.tolist()[0]]
-            else:
-                retrieved_chunks = ["No relevant policy found."]
 
-            prompt = f"""
-            Context information is below.
-            ---------------------
-            {retrieved_chunks}
-            ---------------------
-            Given the context information and not prior knowledge, answer the query.
-            Query: {question}
-            Answer:
-            """
-            messages = [UserMessage(content=prompt)]
-            try:
-                response = client.chat.complete(model="mistral-large-latest", messages=messages)
-                answer = response.choices[0].message.content if response.choices else "No response generated."
-            except Exception as e:
-                st.error(f"Error generating response: {e}")
-                answer = "Error: Could not generate response."
-            st.text_area("Answer:", answer, height=200)
+                prompt = f"""
+                Context information is below.
+                ---------------------
+                {retrieved_chunks}
+                ---------------------
+                Given the context information and not prior knowledge, answer the query.
+                Query: {question}
+                Answer:
+                """
+                messages = [UserMessage(content=prompt)]
+                try:
+                    response = client.chat.complete(model="mistral-large-latest", messages=messages)
+                    answer = response.choices[0].message.content if response.choices else "No response generated."
+                except Exception as e:
+                    st.error(f"Error generating response: {e}")
+                    answer = "Error: Could not generate response."
+                st.text_area("Answer:", answer, height=200)
     else:
         st.warning("Please enter a question.")
