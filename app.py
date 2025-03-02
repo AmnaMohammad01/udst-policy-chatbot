@@ -125,7 +125,15 @@ st.write("Ask questions about UDST policies and get relevant answers.")
 
 # **Display Available Policies as Hyperlinks**
 st.subheader("Available Policies")
-st.markdown('<div class="policy-container">' + ''.join([f'<a href="{url}" target="_blank">{policy}</a>' for policy, url in valid_policies.items()]) + '</div>', unsafe_allow_html=True)
+st.markdown("### Available Policies")
+col1, col2 = st.columns(2)  # Two-column layout for better readability
+policies_list = list(valid_policies.items())
+
+for i, (policy, url) in enumerate(policies_list):
+    if i % 2 == 0:
+        col1.markdown(f"- [{policy}]({url})")
+    else:
+        col2.markdown(f"- [{policy}]({url})")
 
 # **User Query Section**
 st.subheader("Ask a Question")
