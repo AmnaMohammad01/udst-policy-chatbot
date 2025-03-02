@@ -1,18 +1,15 @@
-import os
 import time
 import requests
 import numpy as np
 import faiss
 import streamlit as st
 from bs4 import BeautifulSoup
-from dotenv import load_dotenv
 from mistralai import Mistral
 from mistralai.models import UserMessage
 import pickle
 
-# Load API Key from .env file
-load_dotenv()
-API_KEY = os.getenv("MISTRAL_API_KEY")
+# Load API Key from Streamlit Secrets
+API_KEY = st.secrets["MISTRAL_API_KEY"]
 client = Mistral(api_key=API_KEY)
 
 # FAISS & Data Paths
@@ -75,55 +72,37 @@ def get_text_embedding(text_chunks, batch_size=5):
 if os.path.exists(FAISS_INDEX_PATH) and os.path.exists(ALL_CHUNKS_PATH):
     print("🔄 FAISS index and all_chunks exist. Loading...")
     index = faiss.read_index(FAISS_INDEX_PATH)
-
     with open(ALL_CHUNKS_PATH, "rb") as f:
         all_chunks = pickle.load(f)
     print("✅ Successfully loaded FAISS index and all_chunks.")
 else:
     print("🆕 FAISS index does not exist. Generating embeddings...")
-
-    # Fetch policy data
     policy_data = fetch_policies(urls)
-
-    # Process all policies
     all_chunks = []
     for url, text in policy_data.items():
         chunks = chunk_text(text)
         all_chunks.extend(chunks)
-
-    # Generate embeddings for all text chunks
     text_embeddings = get_text_embedding(all_chunks)
     embeddings = np.array([text_embeddings[i].embedding for i in range(len(text_embeddings))])
-
-    # Create and save FAISS index
     d = len(text_embeddings[0].embedding)  # Embedding dimension
     index = faiss.IndexFlatL2(d)
     index.add(embeddings)
     faiss.write_index(index, FAISS_INDEX_PATH)
-
-    # Save all_chunks
     with open(ALL_CHUNKS_PATH, "wb") as f:
         pickle.dump(all_chunks, f)
-
     print("✅ FAISS Index and all_chunks successfully created and saved.")
 
 # **Streamlit UI**
 st.title("UDST Policy RAG Chatbot")
 st.write("Ask questions about UDST policies and get relevant answers.")
 
-# User input for query
 question = st.text_input("Enter your question:", "")
 
 if st.button("Get Answer"):
     if question:
-        # Generate embedding for the user query
         question_embedding = np.array([get_text_embedding([question])[0].embedding])
-
-        # Retrieve top matching policy chunks from FAISS
         D, I = index.search(question_embedding, k=2)
         retrieved_chunks = [all_chunks[i] for i in I.tolist()[0]]
-
-        # Construct prompt for Mistral
         prompt = f"""
         Context information is below.
         ---------------------
@@ -133,15 +112,9 @@ if st.button("Get Answer"):
         Query: {question}
         Answer:
         """
-
-        # Generate response using Mistral
         messages = [UserMessage(content=prompt)]
         response = client.chat.complete(model="mistral-large-latest", messages=messages)
-
-        # Extract response safely
         answer = response.choices[0].message.content if response.choices else "No response generated."
-
-        # Display response
         st.text_area("Answer:", answer, height=200)
     else:
         st.warning("Please enter a question.")
