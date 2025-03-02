@@ -1,20 +1,32 @@
+import streamlit as st
+import os
 import time
 import requests
 import numpy as np
 import faiss
-import streamlit as st
+import pickle
 from bs4 import BeautifulSoup
 from mistralai import Mistral
 from mistralai.models import UserMessage
-import pickle
 
 # Load API Key from Streamlit Secrets
 API_KEY = st.secrets["MISTRAL_API_KEY"]
 client = Mistral(api_key=API_KEY)
 
-# FAISS & Data Paths
-FAISS_INDEX_PATH = "policy_embeddings.index"
-ALL_CHUNKS_PATH = "all_chunks.pkl"
+# Use Streamlit Cache to Store FAISS Index
+@st.cache_resource
+def load_faiss_index():
+    if "faiss_index" in st.session_state:
+        return st.session_state["faiss_index"]
+    else:
+        return None
+
+# Use Session State for Data Persistence
+if "all_chunks" not in st.session_state:
+    st.session_state["all_chunks"] = []
+
+if "faiss_index" not in st.session_state:
+    st.session_state["faiss_index"] = None
 
 # List of policy URLs
 urls = [
@@ -50,7 +62,6 @@ def chunk_text(text, chunk_size=512):
 
 # Get embeddings using Mistral (Batch Processing with Delay)
 def get_text_embedding(text_chunks, batch_size=5):
-    client = Mistral(api_key=API_KEY)
     embeddings_list = []
     for i in range(0, len(text_chunks), batch_size):
         batch = text_chunks[i:i + batch_size]
@@ -68,13 +79,11 @@ def get_text_embedding(text_chunks, batch_size=5):
         time.sleep(2)  # Add delay to avoid rate limits
     return embeddings_list
 
-# **Load FAISS & all_chunks if available, otherwise create embeddings**
-if os.path.exists(FAISS_INDEX_PATH) and os.path.exists(ALL_CHUNKS_PATH):
-    print("🔄 FAISS index and all_chunks exist. Loading...")
-    index = faiss.read_index(FAISS_INDEX_PATH)
-    with open(ALL_CHUNKS_PATH, "rb") as f:
-        all_chunks = pickle.load(f)
-    print("✅ Successfully loaded FAISS index and all_chunks.")
+# Load FAISS index if it exists
+if load_faiss_index():
+    print("🔄 FAISS index exists. Loading...")
+    index = load_faiss_index()
+    all_chunks = st.session_state["all_chunks"]
 else:
     print("🆕 FAISS index does not exist. Generating embeddings...")
     policy_data = fetch_policies(urls)
@@ -82,15 +91,20 @@ else:
     for url, text in policy_data.items():
         chunks = chunk_text(text)
         all_chunks.extend(chunks)
+
     text_embeddings = get_text_embedding(all_chunks)
     embeddings = np.array([text_embeddings[i].embedding for i in range(len(text_embeddings))])
-    d = len(text_embeddings[0].embedding)  # Embedding dimension
+
+    # Create FAISS index in memory (no file storage)
+    d = len(text_embeddings[0].embedding)
     index = faiss.IndexFlatL2(d)
     index.add(embeddings)
-    faiss.write_index(index, FAISS_INDEX_PATH)
-    with open(ALL_CHUNKS_PATH, "wb") as f:
-        pickle.dump(all_chunks, f)
-    print("✅ FAISS Index and all_chunks successfully created and saved.")
+
+    # Store in session state
+    st.session_state["faiss_index"] = index
+    st.session_state["all_chunks"] = all_chunks
+
+    print("✅ FAISS Index successfully created and stored in memory.")
 
 # **Streamlit UI**
 st.title("UDST Policy RAG Chatbot")
@@ -103,6 +117,7 @@ if st.button("Get Answer"):
         question_embedding = np.array([get_text_embedding([question])[0].embedding])
         D, I = index.search(question_embedding, k=2)
         retrieved_chunks = [all_chunks[i] for i in I.tolist()[0]]
+
         prompt = f"""
         Context information is below.
         ---------------------
