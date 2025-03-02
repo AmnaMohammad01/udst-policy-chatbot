@@ -7,7 +7,7 @@ import faiss
 import pickle
 from bs4 import BeautifulSoup
 from mistralai import Mistral
-from mistralai.models import UserMessage, MistralAPIError
+from mistralai.models import UserMessage
 
 # Load API Key from Streamlit Secrets
 try:
@@ -41,7 +41,7 @@ def get_text_embedding(text_chunks):
         try:
             response = client.embeddings.create(model="mistral-embed", inputs=[text])
             embeddings_list.append(response.data[0].embedding)
-        except MistralAPIError as e:
+        except Exception as e:
             st.error(f"Error fetching embeddings: {e}")
             return None
     return embeddings_list
@@ -99,7 +99,7 @@ if st.button("Get Answer", key="get_answer_button"):
             try:
                 response = client.chat.complete(model="mistral-large-latest", messages=messages)
                 answer = response.choices[0].message.content if response.choices else "No response generated."
-            except MistralAPIError as e:
+            except Exception as e:
                 st.error(f"Error generating response: {e}")
                 answer = "Error: Could not generate response."
             st.text_area("Answer:", answer, height=200)
