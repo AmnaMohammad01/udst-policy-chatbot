@@ -7,10 +7,17 @@ import faiss
 import pickle
 from bs4 import BeautifulSoup
 from mistralai import Mistral
-from mistralai.models import UserMessage
+from mistralai.models import UserMessage, MistralAPIError
 
 # Load API Key from Streamlit Secrets
-API_KEY = st.secrets["MISTRAL_API_KEY"]
+try:
+    API_KEY = st.secrets["MISTRAL_API_KEY"]
+    if not API_KEY:
+        raise ValueError("API Key not found in Streamlit secrets.")
+except Exception as e:
+    st.error(f"Error loading API Key: {e}")
+    st.stop()
+
 client = Mistral(api_key=API_KEY)
 
 # Define policy URLs and names
@@ -31,8 +38,12 @@ policies = {
 def get_text_embedding(text_chunks):
     embeddings_list = []
     for text in text_chunks:
-        response = client.embeddings.create(model="mistral-embed", inputs=[text])
-        embeddings_list.append(response.data[0].embedding)
+        try:
+            response = client.embeddings.create(model="mistral-embed", inputs=[text])
+            embeddings_list.append(response.data[0].embedding)
+        except MistralAPIError as e:
+            st.error(f"Error fetching embeddings: {e}")
+            return None
     return embeddings_list
 
 # **Streamlit UI Styling**
@@ -64,27 +75,33 @@ question = st.text_input("Enter your question:", "", key="question_input")
 
 if st.button("Get Answer", key="get_answer_button"):
     if question:
-        question_embedding = np.array(get_text_embedding([question]))
-        
-        if 'index' in globals() and 'all_chunks' in globals():
-            D, I = index.search(question_embedding, k=2)
-            retrieved_chunks = [all_chunks[i] for i in I.tolist()[0]]
+        question_embedding = get_text_embedding([question])
+        if question_embedding is None:
+            st.error("Failed to generate embeddings. Please try again later.")
         else:
-            retrieved_chunks = ["No relevant policy found."]
+            question_embedding = np.array(question_embedding)
+            if 'index' in globals() and 'all_chunks' in globals():
+                D, I = index.search(question_embedding, k=2)
+                retrieved_chunks = [all_chunks[i] for i in I.tolist()[0]]
+            else:
+                retrieved_chunks = ["No relevant policy found."]
 
-        prompt = f"""
-        Context information is below.
-        ---------------------
-        {retrieved_chunks}
-        ---------------------
-        Given the context information and not prior knowledge, answer the query.
-        Query: {question}
-        Answer:
-        """
-        messages = [UserMessage(content=prompt)]
-        response = client.chat.complete(model="mistral-large-latest", messages=messages)
-        answer = response.choices[0].message.content if response.choices else "No response generated."
-
-        st.text_area("Answer:", answer, height=200)
+            prompt = f"""
+            Context information is below.
+            ---------------------
+            {retrieved_chunks}
+            ---------------------
+            Given the context information and not prior knowledge, answer the query.
+            Query: {question}
+            Answer:
+            """
+            messages = [UserMessage(content=prompt)]
+            try:
+                response = client.chat.complete(model="mistral-large-latest", messages=messages)
+                answer = response.choices[0].message.content if response.choices else "No response generated."
+            except MistralAPIError as e:
+                st.error(f"Error generating response: {e}")
+                answer = "Error: Could not generate response."
+            st.text_area("Answer:", answer, height=200)
     else:
         st.warning("Please enter a question.")
