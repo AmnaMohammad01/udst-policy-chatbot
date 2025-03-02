@@ -1,4 +1,5 @@
 import streamlit as st
+import os
 import time
 import requests
 import numpy as np
@@ -7,7 +8,6 @@ import pickle
 from bs4 import BeautifulSoup
 from mistralai import Mistral
 from mistralai.models import UserMessage
-import os 
 
 # Load API Key from Streamlit Secrets
 API_KEY = st.secrets["MISTRAL_API_KEY"]
@@ -28,27 +28,27 @@ policies = {
 }
 
 # **Streamlit UI Styling**
-st.set_page_config(page_title="UDST Policy RAG Chatbot", page_icon="📜", layout="wide")
+st.set_page_config(page_title="UDST Policy RAG Chatbot", layout="wide")
 st.markdown("""
     <style>
-        body { background-color: #f4f4f4; }
-        .main { background-color: #ffffff; padding: 20px; border-radius: 10px; }
+        .main { background-color: #ffffff; padding: 15px; border-radius: 10px; }
         .stTextInput, .stTextArea, .stButton { border-radius: 10px; }
-        .stButton button { background-color: #ff4b4b; color: white; border-radius: 10px; font-size: 16px; }
+        .stButton button { background-color: #ff4b4b; color: white; border-radius: 10px; font-size: 14px; }
+        .policy-container { display: flex; flex-wrap: wrap; gap: 5px; }
+        .policy-container a { background-color: #f0f0f0; padding: 3px 8px; border-radius: 5px; text-decoration: none; color: #333; font-size: 12px; }
     </style>
 """, unsafe_allow_html=True)
 
 # **Title Section**
-st.title("📜 UDST Policy RAG Chatbot")
+st.title("UDST Policy RAG Chatbot")
 st.write("Ask questions about UDST policies and get relevant answers.")
 
-# **Policy List as Hyperlinks**
-st.subheader("📌 Available Policies")
-for policy, url in policies.items():
-    st.markdown(f"- [{policy}]({url})")
+# **Policy List as Compact Hyperlinks**
+st.subheader("Available Policies")
+st.markdown('<div class="policy-container">' + ''.join([f'<a href="{url}" target="_blank">{policy}</a>' for policy, url in policies.items()]) + '</div>', unsafe_allow_html=True)
 
 # **User Query Section**
-st.subheader("💬 Ask a Question")
+st.subheader("Ask a Question")
 question = st.text_input("Enter your question:", "", key="question_input")
 
 if st.button("Get Answer", key="get_answer_button"):
@@ -70,6 +70,6 @@ if st.button("Get Answer", key="get_answer_button"):
         response = client.chat.complete(model="mistral-large-latest", messages=messages)
         answer = response.choices[0].message.content if response.choices else "No response generated."
 
-        st.text_area("📝 Answer:", answer, height=200)
+        st.text_area("Answer:", answer, height=200)
     else:
-        st.warning("⚠️ Please enter a question.")
+        st.warning("Please enter a question.")
