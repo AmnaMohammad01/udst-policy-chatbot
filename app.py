@@ -31,7 +31,9 @@ policies = {
 st.set_page_config(page_title="UDST Policy Chatbot", layout="wide")
 st.markdown("""
     <style>
-        html, body { background-color: #1e1e1e; color: white; }
+        html, body, [data-testid="stAppViewContainer"] {
+            background-color: #1e1e1e; color: white;
+        }
         .main { background-color: #262626; padding: 20px; border-radius: 10px; }
         .stTextInput, .stTextArea, .stButton { border-radius: 10px; }
         .stButton button { background-color: #ff4b4b; color: white; border-radius: 10px; font-size: 14px; }
