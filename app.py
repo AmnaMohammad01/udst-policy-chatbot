@@ -1,8 +1,4 @@
 import streamlit as st
-
-# Set page config at the very beginning
-st.set_page_config(page_title="UDST Policy Chatbot", layout="wide")
-
 import os
 import time
 import requests
@@ -12,6 +8,9 @@ import pickle
 from bs4 import BeautifulSoup
 from mistralai import Mistral
 from mistralai.models import UserMessage
+
+# Set page config at the very beginning
+st.set_page_config(page_title="UDST Policy Chatbot", layout="wide")
 
 # Load API Key from Streamlit Secrets
 try:
@@ -43,7 +42,7 @@ def fetch_policies():
         "Registration Procedure": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/policies-and-procedures/registration-procedure"
     }
 
-# Function to regenerate FAISS index
+# Function to regenerate FAISS index with retry mechanism
 def regenerate_embeddings():
     policies = fetch_policies()
     all_chunks = []
@@ -65,12 +64,18 @@ def regenerate_embeddings():
     if all_chunks:
         embeddings = []
         for chunk in all_chunks:
-            try:
-                response = client.embeddings.create(model="mistral-embed", inputs=[chunk])
-                embeddings.append(response.data[0].embedding)
-            except Exception as e:
-                st.error(f"Error generating embeddings: {e}")
-                return None, None, None
+            retries = 3
+            for attempt in range(retries):
+                try:
+                    response = client.embeddings.create(model="mistral-embed", inputs=[chunk])
+                    embeddings.append(response.data[0].embedding)
+                    break
+                except Exception as e:
+                    if attempt < retries - 1:
+                        time.sleep(2 ** attempt)  # Exponential backoff
+                    else:
+                        st.error(f"Error generating embeddings: {e}")
+                        return None, None, None
 
         embeddings = np.array(embeddings)
         index = faiss.IndexFlatL2(embeddings.shape[1])
@@ -96,16 +101,22 @@ if os.path.exists(FAISS_INDEX_PATH) and os.path.exists(ALL_CHUNKS_PATH):
 else:
     index, all_chunks, valid_policies = regenerate_embeddings()
 
-# Function to get text embeddings
+# Function to get text embeddings with retry mechanism
 def get_text_embedding(text_chunks):
     embeddings_list = []
     for text in text_chunks:
-        try:
-            response = client.embeddings.create(model="mistral-embed", inputs=[text[:512]])  # Limit chunk size
-            embeddings_list.append(response.data[0].embedding)
-        except Exception as e:
-            st.error(f"Error fetching embeddings: {e}")
-            return None
+        retries = 3
+        for attempt in range(retries):
+            try:
+                response = client.embeddings.create(model="mistral-embed", inputs=[text[:512]])  # Limit chunk size
+                embeddings_list.append(response.data[0].embedding)
+                break
+            except Exception as e:
+                if attempt < retries - 1:
+                    time.sleep(2 ** attempt)  # Exponential backoff
+                else:
+                    st.error(f"Error fetching embeddings: {e}")
+                    return None
     return embeddings_list
 
 # **Title Section**
