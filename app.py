@@ -123,17 +123,16 @@ def get_text_embedding(text_chunks):
 st.title("UDST Policy Chatbot")
 st.write("Ask questions about UDST policies and get relevant answers.")
 
-# **Display Available Policies as Hyperlinks**
 st.subheader("Available Policies")
-st.markdown("### Available Policies")
-col1, col2 = st.columns(2)  # Two-column layout for better readability
-policies_list = list(valid_policies.items())
+policy_titles = list(valid_policies.keys())
+policy_urls = list(valid_policies.values())
 
-for i, (policy, url) in enumerate(policies_list):
-    if i % 2 == 0:
-        col1.markdown(f"- [{policy}]({url})")
-    else:
-        col2.markdown(f"- [{policy}]({url})")
+# Create a grid layout for policy buttons
+cols = st.columns(5)  # Five columns in one row
+for i, title in enumerate(policy_titles):
+    with cols[i % 5]:  # Distribute across 5 columns
+        st.markdown(f'<a href="{policy_urls[i]}" target="_blank" style="display: block; text-align: center; padding: 10px; background-color: #ffffff; border-radius: 5px; border: 1px solid #ddd; text-decoration: none; color: #000;">{title}</a>', unsafe_allow_html=True)
+
 
 # **User Query Section**
 st.subheader("Ask a Question")
