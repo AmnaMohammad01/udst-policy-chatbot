@@ -40,32 +40,41 @@ def fetch_policies():
         "International Student Policy": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/udst-policies-and-procedures/international-student-policy",
         "International Student Procedure": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/udst-policies-and-procedures/international-student-procedure",
         "Registration Policy": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/policies-and-procedures/registration-policy",
-        "Registration Procedure": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/policies-and-procedures/registration-procedure"
+        "Registration Procedure": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/udst-policies-and-procedures/registration-procedure"
     }
 
 # Function to regenerate FAISS index
 def regenerate_embeddings():
     policies = fetch_policies()
     all_chunks = []
-    for url in policies.values():
+    valid_policies = {}
+    for title, url in policies.items():
         try:
             response = requests.get(url)
+            if response.status_code == 404:
+                st.warning(f"Skipping {title} (404 Not Found)")
+                continue
             response.raise_for_status()
             soup = BeautifulSoup(response.text, "html.parser")
             content = soup.get_text(strip=True)
             all_chunks.append(content)
+            valid_policies[title] = url
         except Exception as e:
             st.error(f"Error fetching {url}: {e}")
 
-    embeddings = [client.embeddings.create(model="mistral-embed", inputs=[chunk]).data[0].embedding for chunk in all_chunks]
-    embeddings = np.array(embeddings)
+    if all_chunks:
+        embeddings = [client.embeddings.create(model="mistral-embed", inputs=[chunk]).data[0].embedding for chunk in all_chunks]
+        embeddings = np.array(embeddings)
+        index = faiss.IndexFlatL2(embeddings.shape[1])
+        index.add(embeddings)
+        faiss.write_index(index, FAISS_INDEX_PATH)
+        with open(ALL_CHUNKS_PATH, "wb") as f:
+            pickle.dump(all_chunks, f)
+    else:
+        st.error("No valid policies found. Please check the links.")
+        index, all_chunks = None, None
     
-    index = faiss.IndexFlatL2(embeddings.shape[1])
-    index.add(embeddings)
-    faiss.write_index(index, FAISS_INDEX_PATH)
-    with open(ALL_CHUNKS_PATH, "wb") as f:
-        pickle.dump(all_chunks, f)
-    return index, all_chunks
+    return index, all_chunks, valid_policies
 
 # Load FAISS index and all_chunks if available
 if os.path.exists(FAISS_INDEX_PATH) and os.path.exists(ALL_CHUNKS_PATH):
@@ -73,10 +82,11 @@ if os.path.exists(FAISS_INDEX_PATH) and os.path.exists(ALL_CHUNKS_PATH):
         index = faiss.read_index(FAISS_INDEX_PATH)
         with open(ALL_CHUNKS_PATH, "rb") as f:
             all_chunks = pickle.load(f)
+        valid_policies = fetch_policies()
     except Exception as e:
-        index, all_chunks = regenerate_embeddings()
+        index, all_chunks, valid_policies = regenerate_embeddings()
 else:
-    index, all_chunks = regenerate_embeddings()
+    index, all_chunks, valid_policies = regenerate_embeddings()
 
 # Function to get text embeddings
 def get_text_embedding(text_chunks):
@@ -96,8 +106,7 @@ st.write("Ask questions about UDST policies and get relevant answers.")
 
 # **Display Available Policies as Hyperlinks**
 st.subheader("Available Policies")
-policies = fetch_policies()
-st.markdown('<div class="policy-container">' + ''.join([f'<a href="{url}" target="_blank">{policy}</a>' for policy, url in policies.items()]) + '</div>', unsafe_allow_html=True)
+st.markdown('<div class="policy-container">' + ''.join([f'<a href="{url}" target="_blank">{policy}</a>' for policy, url in valid_policies.items()]) + '</div>', unsafe_allow_html=True)
 
 # **User Query Section**
 st.subheader("Ask a Question")
