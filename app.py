@@ -1,4 +1,8 @@
 import streamlit as st
+
+# Set page config at the very beginning
+st.set_page_config(page_title="UDST Policy Chatbot", layout="wide")
+
 import os
 import time
 import requests
@@ -24,6 +28,49 @@ client = Mistral(api_key=API_KEY)
 FAISS_INDEX_PATH = "policy_embeddings.index"
 ALL_CHUNKS_PATH = "all_chunks.pkl"
 
+# Function to fetch policy data
+def fetch_policies():
+    policies = {
+        "Graduation Policy": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/udst-policies-and-procedures/graduation-policy",
+        "Graduate Admissions Policy": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/policies-and-procedures/graduate-admissions-policy",
+        "Graduate Academic Standing Policy": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/udst-policies-and-procedures/graduate-academic-standing-policy",
+        "Graduate Academic Standing Procedure": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/udst-policies-and-procedures/graduate-academic-standing-procedure",
+        "Graduate Final Grade Policy": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/policies-and-procedures/graduate-final-grade-policy",
+        "Graduate Final Grade Procedure": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/policies-and-procedures/graduate-final-grade-procedure",
+        "International Student Policy": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/udst-policies-and-procedures/international-student-policy",
+        "International Student Procedure": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/udst-policies-and-procedures/international-student-procedure",
+        "Registration Policy": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/policies-and-procedures/registration-policy",
+        "Registration Procedure": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/udst-policies-and-procedures/registration-procedure"
+    }
+    return policies
+
+# Function to regenerate FAISS index
+def regenerate_embeddings():
+    st.info("Regenerating FAISS index and embeddings. Please wait...")
+    policies = fetch_policies()
+    all_chunks = []
+    for url in policies.values():
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, "html.parser")
+            content = soup.get_text(strip=True)
+            all_chunks.append(content)
+        except Exception as e:
+            st.error(f"Error fetching {url}: {e}")
+
+    embeddings = [client.embeddings.create(model="mistral-embed", inputs=[chunk]).data[0].embedding for chunk in all_chunks]
+    embeddings = np.array(embeddings)
+    
+    index = faiss.IndexFlatL2(embeddings.shape[1])
+    index.add(embeddings)
+    faiss.write_index(index, FAISS_INDEX_PATH)
+    with open(ALL_CHUNKS_PATH, "wb") as f:
+        pickle.dump(all_chunks, f)
+    
+    st.success("FAISS index and embeddings successfully regenerated.")
+    return index, all_chunks
+
 # Load FAISS index and all_chunks if available
 if os.path.exists(FAISS_INDEX_PATH) and os.path.exists(ALL_CHUNKS_PATH):
     try:
@@ -35,10 +82,11 @@ if os.path.exists(FAISS_INDEX_PATH) and os.path.exists(ALL_CHUNKS_PATH):
         st.error(f"Error loading FAISS index: {e}")
         index, all_chunks = None, None
 else:
-    st.warning("FAISS index and policy data not found. Please regenerate embeddings.")
-    index, all_chunks = None, None
+    st.warning("FAISS index and policy data not found.")
+    if st.button("Regenerate Embeddings"):
+        index, all_chunks = regenerate_embeddings()
 
-# **Function to get text embeddings**
+# Function to get text embeddings
 def get_text_embedding(text_chunks):
     embeddings_list = []
     for text in text_chunks:
@@ -49,21 +97,6 @@ def get_text_embedding(text_chunks):
             st.error(f"Error fetching embeddings: {e}")
             return None
     return embeddings_list
-
-# **Streamlit UI Styling**
-st.set_page_config(page_title="UDST Policy Chatbot", layout="wide")
-st.markdown("""
-    <style>
-        html, body, [data-testid="stAppViewContainer"] {
-            background-color: #874F41; color: white;
-        }
-        .main { background-color: #6e3d32; padding: 20px; border-radius: 10px; }
-        .stTextInput, .stTextArea, .stButton { border-radius: 10px; }
-        .stButton button { background-color: #ff4b4b; color: white; border-radius: 10px; font-size: 14px; }
-        .policy-container { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; justify-content: center; }
-        .policy-container a { background-color: #f0f0f0; padding: 6px 10px; border-radius: 5px; text-decoration: none; color: #333; font-size: 14px; text-align: center; display: block; }
-    </style>
-""", unsafe_allow_html=True)
 
 # **Title Section**
 st.title("UDST Policy Chatbot")
@@ -76,7 +109,7 @@ question = st.text_input("Enter your question:", "", key="question_input")
 if st.button("Get Answer", key="get_answer_button"):
     if question:
         if index is None or all_chunks is None:
-            st.error("FAISS index is not available. Please check your data.")
+            st.error("FAISS index is not available. Please regenerate embeddings.")
         else:
             question_embedding = get_text_embedding([question])
             if question_embedding is None:
