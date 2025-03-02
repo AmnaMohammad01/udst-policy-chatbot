@@ -28,20 +28,20 @@ policies = {
 }
 
 # **Streamlit UI Styling**
-st.set_page_config(page_title="UDST Policy RAG Chatbot", layout="wide")
+st.set_page_config(page_title="UDST Policy Chatbot", layout="wide")
 st.markdown("""
     <style>
-        body { background-color: #1e1e1e; color: white; }
+        html, body { background-color: #1e1e1e; color: white; }
         .main { background-color: #262626; padding: 20px; border-radius: 10px; }
         .stTextInput, .stTextArea, .stButton { border-radius: 10px; }
         .stButton button { background-color: #ff4b4b; color: white; border-radius: 10px; font-size: 14px; }
-        .policy-container { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+        .policy-container { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; justify-content: center; }
         .policy-container a { background-color: #f0f0f0; padding: 6px 10px; border-radius: 5px; text-decoration: none; color: #333; font-size: 14px; text-align: center; display: block; }
     </style>
 """, unsafe_allow_html=True)
 
 # **Title Section**
-st.title("UDST Policy RAG Chatbot")
+st.title("UDST Policy Chatbot")
 st.write("Ask questions about UDST policies and get relevant answers.")
 
 # **Policy List as Compact Hyperlinks in Two Rows**
