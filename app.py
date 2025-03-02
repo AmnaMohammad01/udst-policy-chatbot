@@ -27,6 +27,14 @@ policies = {
     "Registration Procedure": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/udst-policies-and-procedures/registration-procedure"
 }
 
+# **Function to get text embeddings**
+def get_text_embedding(text_chunks):
+    embeddings_list = []
+    for text in text_chunks:
+        response = client.embeddings.create(model="mistral-embed", inputs=[text])
+        embeddings_list.append(response.data[0].embedding)
+    return embeddings_list
+
 # **Streamlit UI Styling**
 st.set_page_config(page_title="UDST Policy Chatbot", layout="wide")
 st.markdown("""
@@ -56,9 +64,13 @@ question = st.text_input("Enter your question:", "", key="question_input")
 
 if st.button("Get Answer", key="get_answer_button"):
     if question:
-        question_embedding = np.array([get_text_embedding([question])[0].embedding])
-        D, I = index.search(question_embedding, k=2)
-        retrieved_chunks = [all_chunks[i] for i in I.tolist()[0]]
+        question_embedding = np.array(get_text_embedding([question]))
+        
+        if 'index' in globals() and 'all_chunks' in globals():
+            D, I = index.search(question_embedding, k=2)
+            retrieved_chunks = [all_chunks[i] for i in I.tolist()[0]]
+        else:
+            retrieved_chunks = ["No relevant policy found."]
 
         prompt = f"""
         Context information is below.
