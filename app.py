@@ -30,7 +30,7 @@ ALL_CHUNKS_PATH = "all_chunks.pkl"
 
 # Function to fetch policy data
 def fetch_policies():
-    policies = {
+    return {
         "Graduation Policy": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/udst-policies-and-procedures/graduation-policy",
         "Graduate Admissions Policy": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/policies-and-procedures/graduate-admissions-policy",
         "Graduate Academic Standing Policy": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/udst-policies-and-procedures/graduate-academic-standing-policy",
@@ -40,13 +40,11 @@ def fetch_policies():
         "International Student Policy": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/udst-policies-and-procedures/international-student-policy",
         "International Student Procedure": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/udst-policies-and-procedures/international-student-procedure",
         "Registration Policy": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/policies-and-procedures/registration-policy",
-        "Registration Procedure": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/udst-policies-and-procedures/registration-procedure"
+        "Registration Procedure": "https://www.udst.edu.qa/about-udst/institutional-excellence-ie/policies-and-procedures/registration-procedure"
     }
-    return policies
 
 # Function to regenerate FAISS index
 def regenerate_embeddings():
-    st.info("Regenerating FAISS index and embeddings. Please wait...")
     policies = fetch_policies()
     all_chunks = []
     for url in policies.values():
@@ -67,8 +65,6 @@ def regenerate_embeddings():
     faiss.write_index(index, FAISS_INDEX_PATH)
     with open(ALL_CHUNKS_PATH, "wb") as f:
         pickle.dump(all_chunks, f)
-    
-    st.success("FAISS index and embeddings successfully regenerated.")
     return index, all_chunks
 
 # Load FAISS index and all_chunks if available
@@ -77,14 +73,10 @@ if os.path.exists(FAISS_INDEX_PATH) and os.path.exists(ALL_CHUNKS_PATH):
         index = faiss.read_index(FAISS_INDEX_PATH)
         with open(ALL_CHUNKS_PATH, "rb") as f:
             all_chunks = pickle.load(f)
-        st.success("Policy data loaded successfully.")
     except Exception as e:
-        st.error(f"Error loading FAISS index: {e}")
-        index, all_chunks = None, None
-else:
-    st.warning("FAISS index and policy data not found.")
-    if st.button("Regenerate Embeddings"):
         index, all_chunks = regenerate_embeddings()
+else:
+    index, all_chunks = regenerate_embeddings()
 
 # Function to get text embeddings
 def get_text_embedding(text_chunks):
@@ -102,6 +94,11 @@ def get_text_embedding(text_chunks):
 st.title("UDST Policy Chatbot")
 st.write("Ask questions about UDST policies and get relevant answers.")
 
+# **Display Available Policies as Hyperlinks**
+st.subheader("Available Policies")
+policies = fetch_policies()
+st.markdown('<div class="policy-container">' + ''.join([f'<a href="{url}" target="_blank">{policy}</a>' for policy, url in policies.items()]) + '</div>', unsafe_allow_html=True)
+
 # **User Query Section**
 st.subheader("Ask a Question")
 question = st.text_input("Enter your question:", "", key="question_input")
@@ -109,7 +106,7 @@ question = st.text_input("Enter your question:", "", key="question_input")
 if st.button("Get Answer", key="get_answer_button"):
     if question:
         if index is None or all_chunks is None:
-            st.error("FAISS index is not available. Please regenerate embeddings.")
+            st.error("FAISS index is not available. Please try again later.")
         else:
             question_embedding = get_text_embedding([question])
             if question_embedding is None:
