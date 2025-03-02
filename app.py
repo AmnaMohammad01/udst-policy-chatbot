@@ -32,9 +32,9 @@ st.set_page_config(page_title="UDST Policy Chatbot", layout="wide")
 st.markdown("""
     <style>
         html, body, [data-testid="stAppViewContainer"] {
-            background-color: #1e1e1e; color: white;
+            background-color: #ffa8B6; color: black;
         }
-        .main { background-color: #262626; padding: 20px; border-radius: 10px; }
+        .main { background-color: #ffe0e6; padding: 20px; border-radius: 10px; }
         .stTextInput, .stTextArea, .stButton { border-radius: 10px; }
         .stButton button { background-color: #ff4b4b; color: white; border-radius: 10px; font-size: 14px; }
         .policy-container { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; justify-content: center; }
